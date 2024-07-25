@@ -51,13 +51,26 @@ var (
 		},
 		[]string{"sensor_name"},
 	)
+
+	bnxtEnTemp = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "network_card_temp_sensor",
+			Help: "Network card temp sensor",
+		},
+		[]string{"sensor_name"},
+	)
 )
 
 func init() {
-	prometheus.MustRegister(ipmiDimmTemp, ipmiVRDimmTemp, ipmiCPUTemp, ipmiEnvTemp, HICTemp)
+	prometheus.MustRegister(ipmiDimmTemp, ipmiVRDimmTemp, ipmiCPUTemp, ipmiEnvTemp, HICTemp, bnxtEnTemp)
 }
 
 func collectMetrics() {
+	collectIPMIMetrics()
+	collectSensorMetrics()
+}
+
+func collectIPMIMetrics() {
 	log.Println("Executing ipmitool command")
 	out, err := exec.Command("sudo", "ipmitool", "sensor").Output()
 	if err != nil {
@@ -79,7 +92,7 @@ func collectMetrics() {
 		valueStr := strings.TrimSpace(fields[1])
 		value, err := strconv.ParseFloat(valueStr, 64)
 		if err != nil {
-			log.Printf("Failed to parse sensor value: %v", err)
+			log.Printf("Failed to parse sensor value for %s: %v", sensorName, err)
 			continue
 		}
 
@@ -102,7 +115,39 @@ func collectMetrics() {
 			log.Printf("Setting HIC_TEMP metric for %s: %f", sensorName, value)
 			HICTemp.With(prometheus.Labels{"sensor_name": sensorName}).Set(value)
 		default:
+			// You might want to log unknown sensors for future reference or debugging
+			log.Printf("Unknown sensor %s with value %f", sensorName, value)
+		}
+	}
+}
 
+func collectSensorMetrics() {
+	log.Println("Executing sensors command")
+	output, err := exec.Command("sensors").Output()
+	if err != nil {
+		log.Fatalf("Failed to execute sensors: %v", err)
+	}
+
+	var currentDevice string
+
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "bnxt_en-pci-0200" {
+			currentDevice = line
+		} else if currentDevice == "bnxt_en-pci-0200" && strings.Contains(line, "temp1") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				tempStr := fields[1]
+				tempStr = strings.Trim(tempStr, "+°C")
+				temp, err := strconv.ParseFloat(tempStr, 64)
+				if err != nil {
+					log.Printf("Failed to parse temperature for device %s: %v", currentDevice, err)
+					continue
+				}
+				log.Printf("Setting temperature for device %s: %f", currentDevice, temp)
+				bnxtEnTemp.With(prometheus.Labels{"sensor_name": currentDevice}).Set(temp)
+				currentDevice = ""
+			}
 		}
 	}
 }
