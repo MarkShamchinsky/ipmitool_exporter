@@ -115,7 +115,6 @@ func collectIPMIMetrics() {
 			log.Printf("Setting HIC_TEMP metric for %s: %f", sensorName, value)
 			HICTemp.With(prometheus.Labels{"sensor_name": sensorName}).Set(value)
 		default:
-			// You might want to log unknown sensors for future reference or debugging
 			log.Printf("Unknown sensor %s with value %f", sensorName, value)
 		}
 	}
