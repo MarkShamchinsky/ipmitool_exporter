@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -74,7 +75,8 @@ func collectIPMIMetrics() {
 	log.Println("Executing ipmitool command")
 	out, err := exec.Command("sudo", "ipmitool", "sensor").Output()
 	if err != nil {
-		log.Fatalf("Failed to execute ipmitool: %v", err)
+		log.Printf("Failed to execute ipmitool: %v", err)
+		return // Просто выходим из функции, не завершая приложение
 	}
 
 	output := string(out)
@@ -158,6 +160,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// Открываем файл для логирования
+	logFile, err := os.OpenFile("/log/ipmitool-exporter.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatalf("Failed to open log file: %v", err)
+	}
+	defer logFile.Close()
+	log.SetOutput(logFile)
+
 	log.Println("Starting ipmi_node_exporter")
 	http.HandleFunc("/metrics", handler)
 	log.Fatal(http.ListenAndServe(":9101", nil))
