@@ -161,7 +161,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	// Открываем файл для логирования
-	logFile, err := os.OpenFile("/log/ipmitool-exporter.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	logFile, err := os.OpenFile("/var/log/ipmitool-exporter.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Fatalf("Failed to open log file: %v", err)
 	}
